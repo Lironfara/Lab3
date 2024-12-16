@@ -1,7 +1,17 @@
+WRITE EQU 4
+STDOUT EQU 1
+READ EQU 3
+STDIN EQU 0
+
+section .data
+    newLine db 10
+
 section .text
 global _start
 global system_call
 extern main
+extern strlen
+
 _start:
     pop    dword ecx    ; ecx = argc
     mov    esi,esp      ; esi = argv
@@ -20,6 +30,16 @@ _start:
     mov     eax,1
     int     0x80
     nop
+
+;ecx - number of arguents
+;esi - pointer of argv
+main: 
+    mov ebp, esp
+    push ebp
+    pushad ;in [ebp+4] is the return address
+    add esi, 4 ;skip the first argument
+    sub ecx, 1 ;decrease the number of arguments
+    jmp loop_args
         
 system_call:
     push    ebp             ; Save caller state
@@ -38,3 +58,55 @@ system_call:
     add     esp, 4          ; Restore caller state
     pop     ebp             ; Restore caller state
     ret                     ; Back to caller
+
+loop_args:
+    cmp ecx, 0 ; no more arguments to print
+    jz exit ;jump to exit
+
+    push dword [esi] ;push the pointer to the current argument
+    call strlen ;len of the word
+    mov edx, eax ;edx holds the length of the string
+    add esp, 4 ;pop the pointer
+    call print_string
+    add esi, 4 ;move to the next argument - add pointrt size
+    sub ecx, 1 ;decrease the number of arguments
+    jmp loop_args
+   
+print_string:
+    push eax
+    push ebx
+    push ecx
+    push edx
+    mov eax, WRITE
+    mov ebx, STDOUT
+    mov ecx, [esi]
+    call system_call
+    pop edx
+    pop ecx ;restore ecx
+    pop ebx
+    pop eax
+    call print_newline
+    ret
+    
+print_newline:
+    push eax
+    push ebx
+    push ecx ; Save ecx
+    push edx
+    mov eax, WRITE
+    mov ebx, STDOUT
+    lea ecx, [newLine]
+    mov edx, 1
+    call system_call
+    pop edx
+    pop ecx ; Restore ecx
+    pop ebx
+    pop eax
+    ret
+
+
+exit:
+    mov eax, 1        ; Set the system call number for exit (1)
+    xor ebx, ebx      ; Set the exit code (0)
+    int 0x80          ; Trigger the system call
+
