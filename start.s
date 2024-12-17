@@ -36,7 +36,6 @@ _start:
 main: 
     mov ebp, esp
     push ebp
-    pushad ;in [ebp+4] is the return address
     add esi, 4 ;skip the first argument
     sub ecx, 1 ;decrease the number of arguments
     jmp loop_args
@@ -63,28 +62,29 @@ loop_args:
     cmp ecx, 0 ; no more arguments to print
     jz exit ;jump to exit
 
+    push ecx ;to save before calling strlen
     push dword [esi] ;push the pointer to the current argument
     call strlen ;len of the word
-    mov edx, eax ;edx holds the length of the string
     add esp, 4 ;pop the pointer
+    mov edx, eax ;edx holds the length of the string
     call print_string
     add esi, 4 ;move to the next argument - add pointrt size
     sub ecx, 1 ;decrease the number of arguments
     jmp loop_args
    
 print_string:
-    push eax
-    push ebx
-    push ecx
-    push edx
     mov eax, WRITE
     mov ebx, STDOUT
-    mov ecx, [esi]
+    mov ecx, [esi] ;pointer to the string
+
+    ;writing arguments to system_call
+    push edx
+    push ecx
+    push ebx
+    push eax
+
     call system_call
-    pop edx
-    pop ecx ;restore ecx
-    pop ebx
-    pop eax
+    add esp, 16 ;pop the arguments
     call print_newline
     ret
     
