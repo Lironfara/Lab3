@@ -2,9 +2,19 @@ WRITE EQU 4
 STDOUT EQU 1
 READ EQU 3
 STDIN EQU 0
+OPEN EQU 5
+O_RDONLY EQU 0
+O_WRONLY EQU 1
+O_CREAT EQU 64
+O_TRUNC EQU 512
+CLOSE EQU 6
+
 
 section .data
     newLine db 10
+    inputBuffer resb 100 ; 100-byte buffer for user input
+    inputFile db 0
+    outputFile db 0
 
 section .bss
     inputBuffer resb 100 ; 100-byte buffer for user input
@@ -36,11 +46,14 @@ _start:
 
 ;ecx - number of arguents
 ;esi - pointer of argv
+
 main: 
     mov ebp, esp
     push ebp
     add esi, 4 ;skip the first argument
     sub ecx, 1 ;decrease the number of arguments
+    mov edi, 0 ; clear edi (input file)
+    mov ebx, 1 ; clear ebx (output file)
     jmp loop_args
         
 system_call:
