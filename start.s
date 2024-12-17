@@ -127,35 +127,46 @@ get_user_input:
     jmp encoder
 
 encoder: ;ecx is the string from user
+    lea edx, [inputBuffer] ; load the address of the inputBuffer
     jmp encoder_loop
 
-print_encoded:
-    mov edx, 100 ;max length of the input
-    call print_string
-    jmp exit
 
 encoder_loop:
     mov al, [esi] ;get the current character
     cmp al, 0 ;if it is the end of the string
-    jz get_user_input ;if there are no more arguments, get user input
+    jz encoded_done ;if there are no more arguments, get user input
     cmp al, 'a' ;if it is a letter
     jl check_uppercase ; Jump if below 'A'
     cmp al, 'z' ;if it is a letter
     jg not_letter ; Jump if above 'Z'
-    add al, 1 ;make it lowercase
-    mov [esi], al ;store the new character
-    inc esi ;move to the next character
-    jmp encoder_loop
+    add al, 1 ;encoder process
+    jmp store_char ;store the character back
 
 encoded_done:
     ; Print the encoded string
-    mov eax, WRITE
-    mov ebx, STDOUT
-    lea ecx, [inputBuffer]
-    call strlen         ; Get the length of the encoded string
-    mov edx, eax        ; Set edx to the length of the string
-    call system_call
+    mov ecx, edx       ; Set ecx to the address of the encoded string
+    push ecx            ; to save
+    push dword edx      ; Push the pointer to the encoded string
+    call strlen        ; Get the length of the encoded string
 
+    pop ecx             ; restore
+    mov edx, eax        ; Set edx to the length of the string
+    mov eax, 4          ; Set the system call number for write (4)
+    mov ebx, 1          ; Set the file descriptor for stdout (1)
+
+    push edx            ; Push the length of the string
+    push ecx            ; Push the pointer to the string
+    push ebx            ; Push the file descriptor
+    push eax            ; Push the system call number
+    call system_call
+    add esp, 16         ; Pop the arguments
+    jmp get_user_input
+
+store_char:
+    ; Store the character back
+    mov [esi], al      ; Store the character back
+    inc esi            ; Move to the next character
+    jmp encoder_loop   ; Continue looping
 
 check_uppercase:
     ; Check if the character is an uppercase letter (A-Z)
@@ -164,15 +175,9 @@ check_uppercase:
     cmp al, 'Z'        ; Compare AL with 'Z'
     jg not_letter      ; If above 'Z', it's not a valid letter
     add al, 1          ; Increment the letter
-    mov [esi], al      ; Store the updated letter back
-    jmp print_encoded_char ; Print the updated letter
-    inc esi            ; Move to the next character
-    jmp encoder_loop   ; Continue looping
+    jmp store_char     ; Store the character back
 
 not_letter:
-    ; If the character is not a letter, skip it
-    mov [esi], al      ; Store the character back
-    jmp print_encoded_char ; Print the character
     inc esi            ; Move to the next character
     jmp encoder_loop   ; Continue looping
 
