@@ -60,7 +60,7 @@ system_call:
 
 loop_args:
     cmp ecx, 0 ; no more arguments to print
-    jz exit ;jump to exit
+    jz get_user_input ;if there are no more arguments, get user input
 
     push ecx ;to save before calling strlen
     push dword [esi] ;push the pointer to the current argument
@@ -68,8 +68,9 @@ loop_args:
     add esp, 4 ;pop the pointer
     mov edx, eax ;edx holds the length of the string
     call print_string
-    add esi, 4 ;move to the next argument - add pointrt size
+    pop ecx ;restore ecx
     sub ecx, 1 ;decrease the number of arguments
+    add esi, 4 ;move to the next argument - add pointrt size
     jmp loop_args
    
 print_string:
@@ -89,21 +90,71 @@ print_string:
     ret
     
 print_newline:
-    push eax
-    push ebx
-    push ecx ; Save ecx
-    push edx
     mov eax, WRITE
     mov ebx, STDOUT
     lea ecx, [newLine]
     mov edx, 1
+
+    push edx
+    push ecx
+    push ebx
+    push eax
+    
     call system_call
-    pop edx
-    pop ecx ; Restore ecx
-    pop ebx
-    pop eax
+    add esp, 16 ;pop the arguments
     ret
 
+
+get_user_input:
+
+    mov eax, READ
+    mov ebx, STDIN
+    lea ecx, [ebp-4] ;store the input in the local variable
+    mov edx, 100 ;max length of the input
+
+    push edx
+    push ecx
+    push ebx
+    push eax
+
+    call system_call
+    add esp, 16 ;pop the arguments
+    jmp encoder
+
+encoder: ;ecx is the string from user
+    mov esi, ecx ;esi is the pointer to the string
+    push ecx ;to save string before calling
+    push dword [esi] ;push the pointer to the current argument
+    call strlen ;len of the word
+    add esp, 4 ;pop the pointer
+    mov edx, eax ;edx holds the length of the string
+    jmp encoder_loop
+
+encoder_loop:
+    cmp edx, 0 ; no more arguments to print
+    jz get_user_input ;if there are no more arguments, get user input
+
+    mov al, [esi] ;get the current character
+    cmp al, 65 ;if it is a letter
+    jl not_letter
+    cmp al, 90 ;if it is a letter
+    jg not_letter
+    add al, 1 ;make it lowercase
+    mov [esi], al ;store the new character
+    sub edx, 1 ;decrease the length of the string
+    jmp encoder_loop
+
+not_letter:
+    cmp al, 97 ;if it is a letter
+    sub edx, 1 ;decrease the length of the string
+    jl encoder_loop
+    cmp al, 122 ;if it is a letter
+    sub edx, 1 ;decrease the length of the string
+    jg encoder_loop
+    sub al, 1 ;make it uppercase
+    mov [esi], al ;store the new character
+    sub edx, 1 ;decrease the length of the string
+    jmp encoder_loop
 
 exit:
     mov eax, 1        ; Set the system call number for exit (1)
