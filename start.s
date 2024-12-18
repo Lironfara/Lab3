@@ -104,9 +104,9 @@ check_argsRW:
     jne next_arg 
     mov al, [esi+1] ;get the second character of the word
     cmp al, 'i' ;if it is -i
-    je read_input_file
+    je set_input_file_name
     cmp byte [esi+1], 'o'
-    je get_output_file_name
+    je set_output_file_name
     jmp next_arg
 
 next_arg:
@@ -116,11 +116,25 @@ next_arg:
     jmp check_argsRW
 
 
-read_input_file:
-    push ecx
+set_input_file_name:
     add esi, 2 ; skip -i
     mov [inputFile], esi ; save the name of the input file
+    jmp next_arg
+    
 
+set_output_file_name:
+    add esi, 2 ; skip -i
+    mov [outputFile], esi ; save the name of the input file
+    jmp next_arg
+
+
+open_error:
+    jmp exit
+
+read_error:
+    jmp exit
+
+read_input_file:
     ; Open the input file
     mov eax, OPEN
     mov ebx, [inputFile]
@@ -128,9 +142,9 @@ read_input_file:
     push ecx
     push ebx
     push eax
+
     call system_call
     add esp, 12 ; pop the arguments
-    pop ecx ; restore the number of arguments
     test eax, eax
     js open_error
     mov edi, eax ; store the file descriptor
@@ -139,28 +153,21 @@ read_input_file:
     mov eax, READ
     mov ebx, edi
     lea ecx, [inputBuffer]
+    mov edx, 100 ; max length of the input
+    push edx
     push ecx
     push ebx
     push eax
-    mov edx, 100 ; max length of the input
     call system_call
-    add esp, 12 ; pop the arguments
-    mov esi, ecx ; esi holds the text from the file
-    jmp check_argsRW
+    add esp, 16 ; pop the arguments
     
+    test eax, eax
+    js read_error
+    ; inputBuffer now holds the text from the file
+    mov esi, inputBuffer ; load the value of the inputBuffer
+    jmp encoder
 
-open_error:
-    ; Handle the error (e.g., print an error message and exit)
-    ; This part is optional and can be customized as needed
-    mov eax, 1
-    xor ebx, ebx
-    int 0x80
 
-get_output_file_name:
-    add esi, 2 ;skip -o
-    mov [outputFile], esi ;save the name of the output file
-    jmp next_arg
-    
 is_user_input:
     cmp dword [inputFile], 0
     jz read_stdin
@@ -225,8 +232,7 @@ read_stdin:
     mov esi, inputBuffer ;load the value of the inputBuffer
     jmp encoder
 
-encoder: ;in encoder ecx holds the 
-    mov esi, ecx 
+encoder: ;in encoder esi holds the input
     jmp encoder_loop
 
 
@@ -255,22 +261,21 @@ write_output_file:
     push ebx
     push eax
     call system_call
-    test eax, eax
-    js open_error
+    add esp, 12 ; pop the arguments
     mov edi, eax ; store the file descriptor
 
     ; Write to the output file
     mov eax, WRITE
     mov ebx, edi
     lea ecx, [inputBuffer]
+    mov edx, 100 ; max length of the input
     push edx
     push ecx
     push ebx
     push eax
-    mov edx, 100 ; max length of the input
     call system_call
-
-    jmp exit
+    add esp, 16 ; pop the arguments
+    jmp read_stdin
 
 print_encoded:
     ; Print the encoded string
