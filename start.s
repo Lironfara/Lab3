@@ -144,7 +144,8 @@ read_input_file:
     push eax
     mov edx, 100 ; max length of the input
     call system_call
-
+    add esp, 12 ; pop the arguments
+    mov esi, ecx ; esi holds the text from the file
     jmp check_argsRW
     
 
