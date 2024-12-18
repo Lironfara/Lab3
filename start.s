@@ -12,7 +12,6 @@ CLOSE EQU 6
 
 section .data
     newLine db 10
-    inputBuffer resb 100 ; 100-byte buffer for user input
     inputFile db 0
     outputFile db 0
 
@@ -52,8 +51,9 @@ main:
     push ebp
     add esi, 4 ;skip the first argument
     sub ecx, 1 ;decrease the number of arguments
-    mov edi, 0 ; clear edi (input file)
-    mov ebx, 1 ; clear ebx (output file)
+    mov ebx, ecx ; to save the number of arguments
+    mov edi, esi ;to save our argumetns for -o/-i
+
     jmp loop_args
         
 system_call:
@@ -76,7 +76,7 @@ system_call:
 
 loop_args:
     cmp ecx, 0 ; no more arguments to print
-    jz get_user_input ;if there are no more arguments, get user input
+    jz check_RW ;if there are no more arguments, get user input
 
     push ecx ;to save before calling strlen
     push dword [esi] ;push the pointer to the current argument
@@ -88,8 +88,87 @@ loop_args:
     sub ecx, 1 ;decrease the number of arguments
     add esi, 4 ;move to the next argument - add pointrt size
     jmp loop_args
-   
+
+check_RW: 
+    mov eax, 0 ;to be boolean if we need to get user input or not
+    mov ecx, ebx ;to save the number of arguments
+    mov esi, [edi] ;get first word
+    jmp check_argsRW
+
+check_argsRW:
+    ;iterate esi again to check for -i/-o
+    cmp ecx, 0 ; no more arguments to print
+    jz is_user_input ;if there are no more arguments, get user input
+    mov al , [esi] ;get the first character of the word
+    cmp al, '-' ;if it is a flag
+    jne next_arg 
+    mov al, [esi+1] ;get the second character of the word
+    cmp al, 'i' ;if it is -i
+    je read_input_file
+    cmp byte [esi+1], 'o'
+    je get_output_file_name
+    jmp next_arg
+
+next_arg:
+    add edi, 4 ;move to the next argument - add pointrt size
+    mov esi, [edi] ;get the next word
+    sub ecx, 1 ;decrease the number of arguments
+    jmp check_argsRW
+
+
+read_input_file:
+    push ecx
+    add esi, 2 ; skip -i
+    mov [inputFile], esi ; save the name of the input file
+
+    ; Open the input file
+    mov eax, OPEN
+    mov ebx, [inputFile]
+    mov ecx, O_RDONLY
+    push ecx
+    push ebx
+    push eax
+    call system_call
+    add esp, 12 ; pop the arguments
+    pop ecx ; restore the number of arguments
+    test eax, eax
+    js open_error
+    mov edi, eax ; store the file descriptor
+
+    ; Read from the input file
+    mov eax, READ
+    mov ebx, edi
+    lea ecx, [inputBuffer]
+    push ecx
+    push ebx
+    push eax
+    mov edx, 100 ; max length of the input
+    call system_call
+
+    jmp check_argsRW
+    
+
+open_error:
+    ; Handle the error (e.g., print an error message and exit)
+    ; This part is optional and can be customized as needed
+    mov eax, 1
+    xor ebx, ebx
+    int 0x80
+
+get_output_file_name:
+    add esi, 2 ;skip -o
+    mov [outputFile], esi ;save the name of the output file
+    jmp next_arg
+    
+is_user_input:
+    cmp dword [inputFile], 0
+    jz read_stdin
+    jmp read_input_file
+
+
 print_string:
+    push ebx
+    push edi
     mov eax, WRITE
     mov ebx, STDOUT
     mov ecx, [esi] ;pointer to the string
@@ -102,10 +181,14 @@ print_string:
 
     call system_call
     add esp, 16 ;pop the arguments
+    pop edi ;restore the number of argumetns
+    pop ebx ;restore the number of argumetns
     call print_newline
     ret
     
 print_newline:
+    push ebx ;save the orginal number of arguments
+    push edi ;save the orginal number of arguments
     mov eax, WRITE
     mov ebx, STDOUT
     lea ecx, [newLine]
@@ -118,10 +201,12 @@ print_newline:
     
     call system_call
     add esp, 16 ;pop the arguments
+    pop edi ;restore the number of argumetns
+    pop ebx ;restore the number of argumetns
     ret
 
 
-get_user_input:
+read_stdin:
 
     mov eax, READ
     mov ebx, STDIN
@@ -139,8 +224,8 @@ get_user_input:
     mov esi, inputBuffer ;load the value of the inputBuffer
     jmp encoder
 
-encoder: ;ecx is the string from user
-    lea edx, [inputBuffer] ; load the address of the inputBuffer
+encoder: ;in encoder ecx holds the 
+    mov esi, ecx 
     jmp encoder_loop
 
 
@@ -156,6 +241,37 @@ encoder_loop:
     jmp store_char ;store the character back
 
 encoded_done:
+    cmp dword [outputFile], 0
+    jz print_encoded
+    jmp write_output_file
+
+write_output_file:
+    ; Open the output file
+    mov eax, OPEN
+    mov ebx, [outputFile]
+    mov ecx, O_WRONLY | O_CREAT | O_TRUNC
+    push ecx
+    push ebx
+    push eax
+    call system_call
+    test eax, eax
+    js open_error
+    mov edi, eax ; store the file descriptor
+
+    ; Write to the output file
+    mov eax, WRITE
+    mov ebx, edi
+    lea ecx, [inputBuffer]
+    push edx
+    push ecx
+    push ebx
+    push eax
+    mov edx, 100 ; max length of the input
+    call system_call
+
+    jmp exit
+
+print_encoded:
     ; Print the encoded string
     mov ecx, edx       ; Set ecx to the address of the encoded string
     push ecx            ; to save
@@ -173,7 +289,7 @@ encoded_done:
     push eax            ; Push the system call number
     call system_call
     add esp, 16         ; Pop the arguments
-    jmp get_user_input
+    jmp read_stdin
 
 store_char:
     ; Store the character back
