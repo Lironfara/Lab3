@@ -1,30 +1,17 @@
-# Compiler and assembler
-CC = gcc
-AS = nasm
+all : virus
 
-# Compiler and assembler flags
-CFLAGS = -m32 -Wall -g
-ASFLAGS = -f elf32
+virus : util.o main.o start.o
+	gcc -g -m32 -Wall -no-pie -o virus util.o main.o start.o
 
-# Targets
-TARGET = main
-OBJS = main.o start.o
+util.o : util.c
+	gcc -g -m32 -Wall -c -o util.o util.c
 
-# Default target
-all: $(TARGET)
+main.o : main.c
+	gcc -g -m32 -Wall -c -o main.o main.c
 
-# Link the object files to create the final executable
-$(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) -o $(TARGET) $(OBJS)
+start.o : start.s
+	nasm -g -f elf -w+all -o start.o start.s
 
-# Compile the C source file
-main.o: main.c
-	$(CC) $(CFLAGS) -c main.c -o main.o
-
-# Assemble the assembly source file
-start.o: start.s
-	$(AS) $(ASFLAGS) start.s -o start.o
-
-# Clean up generated files
-clean:
-	rm -f $(TARGET) $(OBJS)
+.PHONY : clean
+clean :
+	rm -f *.o virus

