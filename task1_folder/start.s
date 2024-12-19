@@ -296,17 +296,15 @@ write_output_file:
     add esp, 16 ; pop the arguments
     test eax, eax
     js open_error
-    mov edi, eax ; store the file descriptor
+    mov ebx, eax ; store the file descriptor
 
     ; Write to the output file
     lea ecx, [outputBuffer] ; Set ecx to the address of the encoded string
     push ecx                ; Save ecx
     call strlen             ; Get the length of the encoded string
-
     pop ecx                 ; Restore ecx
     mov edx, eax            ; Set edx to the length of the string
     mov eax, 4              ; Set the system call number for write (4)
-    mov ebx, eax
     push edx                ; Push the length of the string
     push ecx                ; Push the address of the string
     push ebx
