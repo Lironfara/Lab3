@@ -311,7 +311,7 @@ write_output_file:
     push eax
     call system_call
     add esp, 16 ; pop the arguments
-    jmp exit
+    jmp read_stdin
 
 write_error:
     jmp print_encoded
